@@ -3,9 +3,11 @@ from collections import deque
 import numpy as np
 import urenderer
 from OpenGL import GL
+from urenderer.geometry.mesh.cube import get_mesh_cube
 from urenderer.node import Node
 from urenderer.renderer.opengl import Material, Texture
-
+from urenderer.geometry.mesh.sphere import get_mesh_sphere
+from copy import copy
 
 def update_rotation(node: Node, deltaTime: float, time_since_start: float) -> None:
 
@@ -96,14 +98,95 @@ if __name__ == "__main__":
     materialCube.set_texture(1, "metallicTexture", vitoriaBandeira)
     materialCube.set_texture(2, "roughnessTexture", vitoriaBandeira)
 
+    # ================= CONSTRUÇÃO DA CENA (CONTAINER) =================
+    
+    # Criamos um nó "Container" para agrupar tudo e facilitar o movimento da câmara
+    cena_vitoria = Node()
+    cena_vitoria.name = "Cena_Vitoria"
+
+    # --- O CHÃO ---
+    chao = Node()
+    chao.name = "Chao"
+    chao.render_data["mesh"] = get_mesh_cube()
+    # Usando o materialBasic branco por enquanto (até baixar a relva)
+    chao.render_data["material"] = materialBasic 
+    chao.scale = np.array([30.0, 0.1, 30.0], dtype=np.float32)
+    chao.translation = np.array([0.0, -1.0, 0.0], dtype=np.float32) # Base em Y = -1.0
+    cena_vitoria.add_child(chao)
+
+    # --- O MURO (Fundo do Vitória FC) ---
+    muro = Node()
+    muro.name = "Muro"
+    muro.render_data["mesh"] = get_mesh_cube()
+    muro.render_data["material"] = materialCube # Usa o material com a bandeira
+    muro.scale = np.array([20.0, 10.0, 0.5], dtype=np.float32)
+    muro.translation = np.array([0.0, 4.0, -15.0], dtype=np.float32) # Afastado em Z = -15.0
+    cena_vitoria.add_child(muro)
+
     alejandro = urenderer.geometry.mesh.load_glb("assets/source/Alejandro.glb")
     alejandro.render_data["material"] = materialBasic
     alejandro.translation = np.array([5, 5, -7])
     alejandro.rotation = np.array([30, 0, 0], np.float32)
     runtime.scene.add_child(alejandro)
 
-    # Podemos alterar propriedades da câmera
-    runtime.camera.vertical_fov = 90.0
+    alejandro_base = urenderer.geometry.mesh.load_glb("assets/source/Alejandro.glb")
+
+    malha_de_jogadores = alejandro_base.render_data.get("mesh")
+
+    material_jogador = copy(materialBasic)
+
+    # 5 jogadores distribuídos simetricamente no eixo X. 
+    posicoes_x = np.linspace(-6.0, 6.0, 5)
+    def instanciar_jogador(posicao, nome):
+        jogador = urenderer.geometry.mesh.load_glb("assets/source/Alejandro.glb")
+        jogador.name = nome
+        
+        # Como o .glb é uma árvore com várias partes (corpo, roupa),
+        # aplicamos o material a todos os nós filhos.
+        nos = [jogador]
+        while len(nos) > 0:
+            n = nos.pop(0)
+            nos.extend(n.children)
+            n.render_data["material"] = materialBasic
+
+        # Rotação e Translação
+        jogador.rotation = np.array([30, 0, 0], np.float32)
+        jogador.translation = posicao
+        runtime.scene.add_child(jogador)
+
+    # 1. Linha de Trás (Z = -5.0)
+    for i in range(5):
+        pos = np.array([posicoes_x[i], 1.0, -6.0], dtype=np.float32)
+        instanciar_jogador(pos, f"Jogador_Tras_{i}")
+
+    # 2. Linha do Meio (Z = -2.0)
+    for i in range(5):
+        pos = np.array([posicoes_x[i], -1.0, -6.0], dtype=np.float32)
+        instanciar_jogador(pos, f"Jogador_Meio_{i}")
+
+    # 3. Jogador Destaque / Capitão (Frente, Z = 2.0)
+    pos_capitao = np.array([0.0, -3.0, -6.0], dtype=np.float32)
+    instanciar_jogador(pos_capitao, "Jogador_Destaque")
+
+    # --- A BOLA ---
+    bola = Node()
+    bola.name = "Bola"
+    bola.render_data["mesh"] = get_mesh_sphere()
+    # Podemos usar o material básico ou criar um branco novo
+    bola.render_data["material"] = materialBasic 
+    
+    # Reduzimos a escala da primitiva para parecer uma bola de futebol
+    bola.scale = np.array([0.3, 0.3, 0.3], dtype=np.float32)
+    
+    # Posição: 
+    # X = 0.0 (ao centro)
+    # Y = -0.85 (para não ficar enterrada no chão, já que a esfera tem raio e o chão está em -1.0)
+    # Z = -5.5 (um pouco à frente do capitão, que está em -6.0)
+    bola.translation = np.array([0.0, -5.0, -9.0], dtype=np.float32)
+    
+    runtime.scene.add_child(bola)
+
+    runtime.camera.vertical_fov = 100.0
 
     # Adicionamos luzes a cena
 
@@ -135,3 +218,5 @@ if __name__ == "__main__":
     else:
         # Renderização salvando frames
         runtime.loop(capture=[1])
+
+ 
