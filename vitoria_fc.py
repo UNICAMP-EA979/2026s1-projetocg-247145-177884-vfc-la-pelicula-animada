@@ -9,47 +9,6 @@ from urenderer.renderer.opengl import Material, Texture
 from urenderer.geometry.mesh.sphere import get_mesh_sphere
 from copy import copy
 
-def update_rotation(node: Node, deltaTime: float, time_since_start: float) -> None:
-
-    time_since_start /= 10
-    t = time_since_start - int(time_since_start)
-
-    node.rotation[0] = 0
-    node.rotation[1] = 360*t
-    node.rotation[2] = 0
-
-
-def update_scale(node: Node, deltaTime: float, time_since_start: float) -> None:
-    scale = np.sin(5*time_since_start)/10
-    scale += 0.8
-
-    node.scale = scale * np.ones(3)
-
-
-def update_cube(node: Node, deltaTime: float, time_since_start: float) -> None:
-
-    # Posição = dv/dt -> posição_t = posição_{t-1}+DeltaT*v
-    center: np.array = node.center
-    position = node.translation
-
-    r = position-center
-
-    r_2d = np.array([r[0], r[2]])
-    v_dir = np.array([-r_2d[1], r_2d[0]])
-
-    v = v_dir*node.angular_velocity
-    v = np.array([v[0], 0.0, v[1]])
-
-    node.translation += deltaTime*v
-
-    # Rotação = f(tempo)
-    time_since_start /= 10
-    t = time_since_start - int(time_since_start)
-    node.rotation[0] = 0
-    node.rotation[1] = -360*node.angular_velocity*t
-    node.rotation[2] = 0
-
-
 # Podemos dar um nome a cena
 NOME_DA_CENA = "vitoria_fc"
 
@@ -74,45 +33,42 @@ if __name__ == "__main__":
                            GL.GL_RGB, GL.GL_RGB)
     blackTexture = Texture(np.zeros((1, 1, 3), np.uint8),
                            GL.GL_RGB, GL.GL_RGB)
-
-    starrySkyTexture = Texture.load_file("assets/Blue-universe-956981.jpg",
-                                         srgb=True, drop_alpha=True)
-
-    rockBasecolor = Texture.load_file("assets/Rock035_1K-JPG/Rock035_1K-JPG_Color.jpg",
-                                      srgb=True, drop_alpha=True)
-    rockRoughness = Texture.load_file("assets/Rock035_1K-JPG/Rock035_1K-JPG_Roughness.jpg",
-                                      drop_alpha=True)
+    light_red = np.ones((1, 1, 3), np.uint8)
+    light_red[0, 0, 0] = 255
+    light_red[0, 0, 1] = 25
+    light_red[0, 0, 2] = 50
+    redTexture = Texture(light_red, GL.GL_RGB, GL.GL_RGB)
 
       # IMPORTANTE: Corrigido o carregamento da bandeira para evitar que fique preta/invisível (srgb=True)
     vitoriaBandeira = Texture.load_file("assets/vitoria_bandeira.jpg", srgb=True, drop_alpha=True)
+    brickBasecolor = Texture.load_file("assets/brick/Bricks097_1K-JPG_Color.jpg", srgb=True, drop_alpha=True)
+    brickRoughness = Texture.load_file("assets/brick/Bricks097_1K-JPG_Roughness.jpg", drop_alpha=True)
+    brickMetallic = Texture(np.zeros((1, 1), np.uint8), GL.GL_RED, GL.GL_R8)
+    brickNormal = Texture.load_file("assets/brick/Bricks097_1K-JPG_NormalGL.jpg", drop_alpha=True)
 
-
-    grassBasecolor = Texture.load_file("assets/Grass003_1K-JPG_Color.jpg", srgb=True, drop_alpha=True)
-    grassRoughness = Texture.load_file("assets/Grass003_1K-JPG_Roughness.jpg", drop_alpha=True)
+    grassBasecolor = Texture.load_file("assets/grass/Grass003_1K-JPG_Color.jpg", srgb=True, drop_alpha=True)
+    grassRoughness = Texture.load_file("assets/grass/Grass003_1K-JPG_Roughness.jpg", drop_alpha=True)
     grassMetallic = Texture(np.zeros((1, 1), np.uint8), GL.GL_RED, GL.GL_R8)
-    grassNormal = Texture.load_file("assets/Grass003_1K-JPG_NormalGL.jpg", drop_alpha=True)
+    grassNormal = Texture.load_file("assets/grass/Grass003_1K-JPG_NormalGL.jpg", drop_alpha=True)
 
     alejandroTexturas = []
     for i in range(11):
         if i != 1:
-            alejandroTexturas.append(Texture.load_file(f'assets/textures/gltf_embedded_{i}.jpeg', srgb=True,drop_alpha=True))
+            alejandroTexturas.append(Texture.load_file(f'assets/alejandro/textures/gltf_embedded_{i}.jpeg', srgb=True,drop_alpha=True))
         else:
             alejandroTexturas.append(Texture(255*np.ones((1, 1, 3), np.uint8),GL.GL_RGB, GL.GL_RGB)) 
-                                            
 
     materialBasic = Material(shader)
     materialBasic.set_texture(0, "baseColorTexture", whiteTexture)
     materialBasic.set_texture(1, "metallicTexture", blackTextureR)
     materialBasic.set_texture(2, "roughnessTexture", whiteTextureR)
 
-    materialBackground = Material(shader)
-    materialBackground.set_texture(0, "baseColorTexture", vitoriaBandeira)
+    materialMuro = Material(shader)
+    materialMuro.set_texture(0, "texture0", vitoriaBandeira)
+    materialMuro.set_texture(1, "metallicTexture", blackTextureR)
+    materialMuro.set_texture(2, "roughnessTexture", redTexture)
+    materialMuro.set_texture(3, "normalTexture", whiteTextureR)
 
-    materialCube = Material(shader)
-    materialCube.set_texture(0, "baseColorTexture", vitoriaBandeira)
-
-    materialCube.set_texture(1, "metallicTexture", blackTextureR)
-    materialCube.set_texture(2, "roughnessTexture", whiteTextureR)
         # NOVO MATERIAL: Criado exclusivamente para o chão
     materialGramado = Material(shader)
     materialGramado.set_texture(0, "baseColorTexture", grassBasecolor)
@@ -123,17 +79,16 @@ if __name__ == "__main__":
     materialAlejandro = Material(shader)
     for i in range(11):
         materialAlejandro.set_texture(0, f'texture{i}', alejandroTexturas[i])
+    materialAlejandro.set_uniform("tiling", 40.0)
 
     # ================= CONSTRUÇÃO DA CENA (CONTAINER) =================
     
     materialGramado.set_uniform("tiling", 40.0)
     materialBasic.set_uniform("tiling", 1.0)
-    materialCube.set_uniform("tiling", 1.0)
+    materialMuro.set_uniform("tiling", 1.0)
 
     materialBola = Material(shader)
-    materialBola.set_texture(0, "baseColorTexture", whiteTexture)
-    materialBola.set_texture(1, "metallicTexture", blackTextureR)
-    materialBola.set_texture(2, "roughnessTexture", whiteTextureR)
+    materialBola.set_texture(0, "baseColorTexture", redTexture)
     materialBola.set_uniform("tiling", 1.0)
     
     chao = Node()
@@ -148,18 +103,12 @@ if __name__ == "__main__":
     muro = Node()
     muro.name = "Muro"
     muro.render_data["mesh"] = get_mesh_cube()
-    muro.render_data["material"] = materialCube 
+    muro.render_data["material"] = materialMuro 
     muro.scale = np.array([60.0, 15.0, 0.5], dtype=np.float32)
     muro.translation = np.array([0.0, 4.0, -5.1], dtype=np.float32) 
     runtime.scene.add_child(muro)
 
-    alejandro = urenderer.geometry.mesh.load_glb("assets/source/Alejandro.glb")
-    alejandro.render_data["material"] = materialBackground
-    alejandro.translation = np.array([5, 5, -7])
-    alejandro.rotation = np.array([30, 0, 0], np.float32)
-    runtime.scene.add_child(alejandro)
-
-    alejandro_base = urenderer.geometry.mesh.load_glb("assets/source/Alejandro.glb")
+    alejandro_base = urenderer.geometry.mesh.load_glb("assets/alejandro/Alejandro.glb")
 
     malha_de_jogadores = alejandro_base.render_data.get("mesh")
 
@@ -169,7 +118,7 @@ if __name__ == "__main__":
     posicoes_x = np.linspace(-6.0, 6.0, 5)
     posicoes_x2 = np.linspace(-3.0, 3.0, 5)
     def instanciar_jogador(posicao, nome):
-        jogador = urenderer.geometry.mesh.load_glb("assets/source/Alejandro.glb")
+        jogador = urenderer.geometry.mesh.load_glb("assets/alejandro/Alejandro.glb")
         jogador.name = nome
         
         # Como o .glb é uma árvore com várias partes (corpo, roupa),
@@ -205,7 +154,6 @@ if __name__ == "__main__":
     bola.render_data["mesh"] = get_mesh_sphere()
     bola.render_data["material"] = materialBola
 
-    bola.render_data["material"] = materialBasic 
     bola.scale = np.array([0.2, 0.2, 0.2], dtype=np.float32)  # Reduzimos a escala da primitiva para parecer uma bola de futebol
     # Reduzimos a escala da primitiva para parecer uma bola de futebol
     bola.translation = np.array([0.0, -1.2, 1.5], dtype=np.float32)

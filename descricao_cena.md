@@ -12,3 +12,6 @@ https://br.pinterest.com/pin/615093261579689736/
 
 **Alejandro.glb**
 https://sketchfab.com/3d-models/alejandro-miniroyaleio-rigged-e9778827976c42d2bec10cc1d02ed0cc
+
+**Brick097**
+https://ambientcg.com/view?id=Bricks097
