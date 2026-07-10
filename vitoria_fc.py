@@ -51,13 +51,6 @@ if __name__ == "__main__":
     grassMetallic = Texture(np.zeros((1, 1), np.uint8), GL.GL_RED, GL.GL_R8)
     grassNormal = Texture.load_file("assets/grass/Grass003_1K-JPG_NormalGL.jpg", drop_alpha=True)
 
-    alejandroTexturas = []
-    for i in range(11):
-        if i != 1:
-            alejandroTexturas.append(Texture.load_file(f'assets/alejandro/textures/gltf_embedded_{i}.jpeg', srgb=True,drop_alpha=True))
-        else:
-            alejandroTexturas.append(Texture(255*np.ones((1, 1, 3), np.uint8),GL.GL_RGB, GL.GL_RGB)) 
-
     materialBasic = Material(shader)
     materialBasic.set_texture(0, "baseColorTexture", whiteTexture)
     materialBasic.set_texture(1, "metallicTexture", blackTextureR)
@@ -66,8 +59,7 @@ if __name__ == "__main__":
     materialMuro = Material(shader)
     materialMuro.set_texture(0, "texture0", vitoriaBandeira)
     materialMuro.set_texture(1, "metallicTexture", blackTextureR)
-    materialMuro.set_texture(2, "roughnessTexture", redTexture)
-    materialMuro.set_texture(3, "normalTexture", whiteTextureR)
+    materialMuro.set_texture(2, "roughnessTexture", whiteTextureR)
 
         # NOVO MATERIAL: Criado exclusivamente para o chão
     materialGramado = Material(shader)
@@ -77,9 +69,23 @@ if __name__ == "__main__":
     materialGramado.set_texture(3, "normalTexture", grassNormal)
 
     materialAlejandro = Material(shader)
-    for i in range(11):
-        materialAlejandro.set_texture(0, f'texture{i}', alejandroTexturas[i])
-    materialAlejandro.set_uniform("tiling", 40.0)
+    alejandroRoughness1 = Texture.load_file('assets/alejandro/textures/gltf_embedded_1@channels=G.jpeg', srgb=False, drop_alpha=True)
+    alejandroMetallic1  = Texture.load_file('assets/alejandro/textures/gltf_embedded_1@channels=B.jpeg', srgb=False, drop_alpha=True)
+    materiais_alejandro = []
+    for j in range(11):
+        if j == 1:
+            continue
+ 
+        tex_cor = Texture.load_file(f'assets/alejandro/textures/gltf_embedded_{j}.jpeg', srgb=True, drop_alpha=True)
+        
+        # Instancia um material PBR exclusivo para essa parte do corpo
+        mat = Material(shader)
+        mat.set_texture(0, "baseColorTexture", tex_cor)
+        mat.set_texture(1, "metallicTexture", alejandroMetallic1)     # Usa o mapa de metal correto
+        mat.set_texture(2, "roughnessTexture", alejandroRoughness1)   # Usa o mapa de rugosidade correto
+        mat.set_uniform("tiling", 1.0)
+        
+        materiais_alejandro.append(mat)
 
     # ================= CONSTRUÇÃO DA CENA (CONTAINER) =================
     
@@ -112,22 +118,30 @@ if __name__ == "__main__":
 
     malha_de_jogadores = alejandro_base.render_data.get("mesh")
 
-    material_jogador = copy(materialBasic)
-
     # 5 jogadores distribuídos simetricamente no eixo X. 
     posicoes_x = np.linspace(-6.0, 6.0, 5)
     posicoes_x2 = np.linspace(-3.0, 3.0, 5)
     def instanciar_jogador(posicao, nome):
         jogador = urenderer.geometry.mesh.load_glb("assets/alejandro/Alejandro.glb")
         jogador.name = nome
-        
+
         # Como o .glb é uma árvore com várias partes (corpo, roupa),
         # aplicamos o material a todos os nós filhos.
         nos = [jogador]
+        i = 0
         while len(nos) > 0:
+            print(i)
             n = nos.pop(0)
+            print(n.name.lower())
+            if n.name.lower() == "hairnode":
+                n.render_data["material"] = materiais_alejandro[4]
+            elif n.name.lower() == "headnode":
+                n.render_data["material"] = materiais_alejandro[9]
+            elif n.name.lower() == "eyenode":
+                n.render_data["material"] = materiais_alejandro[5]
             nos.extend(n.children)
             n.render_data["material"] = materialBasic
+            i += 1
 
         # Rotação e Translação
         jogador.rotation = np.array([10, 0, 0], np.float32)
