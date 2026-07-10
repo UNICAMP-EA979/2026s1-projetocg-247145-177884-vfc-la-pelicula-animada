@@ -71,7 +71,7 @@ if __name__ == "__main__":
     materialAlejandro = Material(shader)
     alejandroRoughness1 = Texture.load_file('assets/alejandro/textures/gltf_embedded_1@channels=G.jpeg', srgb=False, drop_alpha=True)
     alejandroMetallic1  = Texture.load_file('assets/alejandro/textures/gltf_embedded_1@channels=B.jpeg', srgb=False, drop_alpha=True)
-    materiais_alejandro = []
+    materiais_alejandro = {}
     for j in range(11):
         if j == 1:
             continue
@@ -85,8 +85,19 @@ if __name__ == "__main__":
         mat.set_texture(2, "roughnessTexture", alejandroRoughness1)   # Usa o mapa de rugosidade correto
         mat.set_uniform("tiling", 1.0)
         
-        materiais_alejandro.append(mat)
+        materiais_alejandro[j] = mat
 
+    mapeamento_texturas = {
+                "headnode": 9,          # Pele do rosto/cabeça
+                "armsnode": 9,          # Braços (geralmente compartilham a textura de pele 0)
+                "handsnode": 3,         # Mãos (geralmente compartilham a textura de pele 0)
+                "torsonode": 3,         # Torso / Camisa / Uniforme
+                "legsnode": 3,          # Pernas / Calções / Meiões
+                "hairnode": 4,          # Cabelo
+                "facialhairnode": 4,    # Barba / Bigode
+                "accessorynode": 6,     # Chuteiras, munhequeiras ou óculos
+                "eyesnode": 5,          # Olhos (Íris e esclera)
+            }
     # ================= CONSTRUÇÃO DA CENA (CONTAINER) =================
     
     materialGramado.set_uniform("tiling", 40.0)
@@ -128,20 +139,16 @@ if __name__ == "__main__":
         # Como o .glb é uma árvore com várias partes (corpo, roupa),
         # aplicamos o material a todos os nós filhos.
         nos = [jogador]
-        i = 0
         while len(nos) > 0:
-            print(i)
             n = nos.pop(0)
-            print(n.name.lower())
-            if n.name.lower() == "hairnode":
-                n.render_data["material"] = materiais_alejandro[4]
-            elif n.name.lower() == "headnode":
-                n.render_data["material"] = materiais_alejandro[9]
-            elif n.name.lower() == "eyenode":
-                n.render_data["material"] = materiais_alejandro[5]
             nos.extend(n.children)
-            n.render_data["material"] = materialBasic
-            i += 1
+
+            nome = n.name.lower()
+            if nome in mapeamento_texturas:
+                id_textura = mapeamento_texturas[nome]
+                n.render_data["material"] = materiais_alejandro[id_textura]
+            else:
+                n.render_data["material"] = materiais_alejandro[0]
 
         # Rotação e Translação
         jogador.rotation = np.array([10, 0, 0], np.float32)
