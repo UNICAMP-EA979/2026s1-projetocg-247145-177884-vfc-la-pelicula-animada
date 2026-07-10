@@ -8,7 +8,7 @@
 #define MAX_LIGHT 10
 #define PI 3.14159265359
 
-// Adicione suporte para texturas com tiling
+// Suporte a texturas com tiling
 
 in vec3 worldPosition;
 in vec3 worldNormal;
@@ -18,65 +18,68 @@ uniform vec3 ambientColor;
 uniform sampler2D baseColorTexture;
 uniform sampler2D metallicTexture;
 uniform sampler2D roughnessTexture;
-uniform float tiling = 1.0;
+uniform float tiling;
+
+uniform Light lights[MAX_LIGHT];
+uniform vec3 cameraPos;
 
 out vec4 FragColor;
 
-uniform Light lights[MAX_LIGHT];
-
 void main()
 {
-    // Calcule a normal do fragmento
-    vec3 worldNormalNormalized = normalize(worldNormal);
+    vec3 normal = normalize(worldNormal);
 
-    // Calcule a direção de visualização (saindo do ponto)
-    vec3 viewDirection = -normalize(worldPosition);
+    // Direção de visualização (do fragmento para a câmera)
+    vec3 viewDir = normalize(cameraPos - worldPosition);
 
-    // Calcule a uv com tiling
-    vec2 uvTiling = uv * tiling;
+    vec2 uvTiled = uv * tiling;
 
-    // Realize sampling das texturas para obter as propriedades da superfície
-    vec3 baseColor = texture(baseColorTexture, uvTiling).rgb;
-    float metallic = texture(metallicTexture, uvTiling).r;
-    float roughness = texture(roughnessTexture, uvTiling).r;
+    // Amostragem das texturas
+    vec3 baseColor   = texture(baseColorTexture, uvTiled).rgb;
+    float metallic   = texture(metallicTexture,   uvTiled).r;
+    float roughness  = texture(roughnessTexture,  uvTiled).r;
 
-    vec3 color = vec3(0);
+    // Acumulador de cor (luz direta)
+    vec3 color = vec3(0.0);
 
-    // Calcule a luz ambiente
-    vec3 ambientLightContribution = baseColor * ambientColor * (1 - metallic) / PI;
+    // Luz ambiente (global)
+    vec3 ambient = ambientColor * baseColor;
 
-    color += ambientLightContribution;
-
-    for(int i = 0; i < MAX_LIGHT; i++)
+    // Loop sobre todas as luzes ativas
+    for (int i = 0; i < MAX_LIGHT; i++)
     {
         Light light = lights[i];
-        if(light.type == LIGHT_UNSET)
-        {
+        if (light.type == LIGHT_UNSET)
             break;
-        }
 
-        //Calcule dados da luz (atenuação, cor, direção)
+        // Dados da luz
         float attenuation = computeLightAttenuation(light, worldPosition);
-        vec3 lightColor = light.intensity * light.color * attenuation;
-        vec3 lightDirection = computeLightDirection(light, worldPosition);
+        vec3 lightColor   = light.color * light.intensity;
+        vec3 lightDir     = computeLightDirection(light, worldPosition);
 
-        //Calcule o half-angle
-        vec3 halfAngle = normalize(lightDirection + viewDirection);
+        // Half‑angle (vetor médio entre luz e visão)
+        vec3 halfAngle = normalize(lightDir + viewDir);
 
-        //Calcule as refletância de fresnel, difusa e especular
-        vec3 fresnel = fresnelReflectance(baseColor, metallic, halfAngle, lightDirection);
-        vec3 diffuse = diffuseReflectance(fresnel, baseColor, metallic);
-        vec3 specular = specularReflectance(fresnel, worldNormalNormalized, halfAngle, viewDirection, lightDirection, roughness);
+        // Fresnel (Schlick)
+        vec3 F = fresnelReflectance(baseColor, metallic, halfAngle, lightDir);
 
-        //Calcule a refletância final
-        vec3 reflectance = diffuse + specular;
+        // Difusa (Lambert)
+        vec3 diffuse = diffuseReflectance(F, baseColor, metallic);
 
-        //Calcule a contribuição da luz e acumule na color
-        float lightnormal = max(dot(worldNormalNormalized, lightDirection), 0.0);
-        vec3 lightContribution = reflectance * lightColor * lightnormal;
+        // Especular (Blinn‑Phong)
+        vec3 specular = specularReflectance(F, normal, halfAngle,
+                                            viewDir, lightDir, roughness);
 
-        color += lightContribution;
+        // Refletância final = difusa + especular ponderada por Fresnel
+        vec3 reflectance = diffuse + F * specular;
+
+        // Fator N·L (Lambert)
+        float NdotL = max(dot(normal, lightDir), 0.0);
+
+        // Contribuição desta luz
+        vec3 contribution = reflectance * lightColor * NdotL * attenuation;
+        color += contribution;
     }
 
-    FragColor = vec4(color, 1.0) * PI;
+    FragColor = vec4(ambient + color, 1.0);
 }
