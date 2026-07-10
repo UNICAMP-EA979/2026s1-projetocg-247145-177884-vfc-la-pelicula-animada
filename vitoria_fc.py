@@ -92,6 +92,14 @@ if __name__ == "__main__":
     grassMetallic = Texture(np.zeros((1, 1), np.uint8), GL.GL_RED, GL.GL_R8)
     grassNormal = Texture.load_file("assets/Grass003_1K-JPG_NormalGL.jpg", drop_alpha=True)
 
+    alejandroTexturas = []
+    for i in range(11):
+        if i != 1:
+            alejandroTexturas.append(Texture.load_file(f'assets/textures/gltf_embedded_{i}.jpeg', srgb=True,drop_alpha=True))
+        else:
+            alejandroTexturas.append(Texture(255*np.ones((1, 1, 3), np.uint8),GL.GL_RGB, GL.GL_RGB)) 
+                                            
+
     materialBasic = Material(shader)
     materialBasic.set_texture(0, "baseColorTexture", whiteTexture)
     materialBasic.set_texture(1, "metallicTexture", blackTextureR)
@@ -102,6 +110,7 @@ if __name__ == "__main__":
 
     materialCube = Material(shader)
     materialCube.set_texture(0, "baseColorTexture", vitoriaBandeira)
+
     materialCube.set_texture(1, "metallicTexture", blackTextureR)
     materialCube.set_texture(2, "roughnessTexture", whiteTextureR)
         # NOVO MATERIAL: Criado exclusivamente para o chão
@@ -110,6 +119,12 @@ if __name__ == "__main__":
     materialGramado.set_texture(1, "metallicTexture", grassMetallic)
     materialGramado.set_texture(2, "roughnessTexture", grassRoughness)
     materialGramado.set_texture(3, "normalTexture", grassNormal)
+
+    materialAlejandro = Material(shader)
+    for i in range(11):
+        materialAlejandro.set_texture(0, f'texture{i}', alejandroTexturas[i])
+
+    # ================= CONSTRUÇÃO DA CENA (CONTAINER) =================
     
     materialGramado.set_uniform("tiling", 40.0)
     materialBasic.set_uniform("tiling", 1.0)
@@ -139,7 +154,7 @@ if __name__ == "__main__":
     runtime.scene.add_child(muro)
 
     alejandro = urenderer.geometry.mesh.load_glb("assets/source/Alejandro.glb")
-    alejandro.render_data["material"] = materialBasic
+    alejandro.render_data["material"] = materialBackground
     alejandro.translation = np.array([5, 5, -7])
     alejandro.rotation = np.array([30, 0, 0], np.float32)
     runtime.scene.add_child(alejandro)
