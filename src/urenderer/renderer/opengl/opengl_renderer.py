@@ -251,6 +251,10 @@ class OpenGLRenderer(Renderer):
     def should_stop(self) -> bool:
         return glfw.window_should_close(self._window)
 
-    def __del__(self):
+def __del__(self):
         self._executor.shutdown()
-        glfw.terminate()
+        try:
+            glfw.terminate()
+        except TypeError:
+            # Ignora o erro se o módulo glfw já estiver sido parcialmente destruído pelo Python
+            pass

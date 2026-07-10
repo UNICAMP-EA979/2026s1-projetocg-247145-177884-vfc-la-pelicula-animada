@@ -83,7 +83,15 @@ if __name__ == "__main__":
     rockRoughness = Texture.load_file("assets/Rock035_1K-JPG/Rock035_1K-JPG_Roughness.jpg",
                                       drop_alpha=True)
 
-    vitoriaBandeira = Texture.load_file("assets/vitoria_bandeira.jpg")
+      # IMPORTANTE: Corrigido o carregamento da bandeira para evitar que fique preta/invisível (srgb=True)
+    vitoriaBandeira = Texture.load_file("assets/vitoria_bandeira.jpg", srgb=True, drop_alpha=True)
+    vitoriaBandeiraM = Texture(np.zeros((1, 1), np.uint8), GL.GL_RED, GL.GL_R8)
+    vitoriaBandeiraR = Texture(255*np.ones((1, 1), np.uint8), GL.GL_RED, GL.GL_R8)
+
+    grassBasecolor = Texture.load_file("assets/Grass003_1K-JPG_Color.jpg", srgb=True, drop_alpha=True)
+    grassRoughness = Texture.load_file("assets/Grass003_1K-JPG_Roughness.jpg", drop_alpha=True)
+    grassMetallic = Texture(np.zeros((1, 1), np.uint8), GL.GL_RED, GL.GL_R8)
+    grassNormal = Texture.load_file("assets/Grass003_1K-JPG_NormalGL.jpg", drop_alpha=True)
 
     materialBasic = Material(shader)
     materialBasic.set_texture(0, "baseColorTexture", whiteTexture)
@@ -95,33 +103,31 @@ if __name__ == "__main__":
 
     materialCube = Material(shader)
     materialCube.set_texture(0, "baseColorTexture", vitoriaBandeira)
-    materialCube.set_texture(1, "metallicTexture", vitoriaBandeira)
-    materialCube.set_texture(2, "roughnessTexture", vitoriaBandeira)
-
-    # ================= CONSTRUÇÃO DA CENA (CONTAINER) =================
+    materialCube.set_texture(1, "metallicTexture", blackTextureR)
+    materialCube.set_texture(2, "roughnessTexture", whiteTextureR)
+        # NOVO MATERIAL: Criado exclusivamente para o chão
+    materialGramado = Material(shader)
+    materialGramado.set_texture(0, "baseColorTexture", grassBasecolor)
+    materialGramado.set_texture(1, "metallicTexture", grassMetallic)
+    materialGramado.set_texture(2, "roughnessTexture", grassRoughness)
+    materialGramado.set_texture(3, "normalTexture", grassNormal)
     
-    # Criamos um nó "Container" para agrupar tudo e facilitar o movimento da câmara
-    cena_vitoria = Node()
-    cena_vitoria.name = "Cena_Vitoria"
-
-    # --- O CHÃO ---
     chao = Node()
     chao.name = "Chao"
     chao.render_data["mesh"] = get_mesh_cube()
-    # Usando o materialBasic branco por enquanto (até baixar a relva)
-    chao.render_data["material"] = materialBasic 
-    chao.scale = np.array([30.0, 0.1, 30.0], dtype=np.float32)
-    chao.translation = np.array([0.0, -1.0, 0.0], dtype=np.float32) # Base em Y = -1.0
-    cena_vitoria.add_child(chao)
+    # Atribuímos o novo material de relva
+    chao.render_data["material"] = materialGramado 
+    chao.scale = np.array([80.0, 1.0, 80.0], dtype=np.float32)
+    chao.translation = np.array([0.0, -2.0, -15.0], dtype=np.float32) # Base em Y = -1.0
+    runtime.scene.add_child(chao)
 
-    # --- O MURO (Fundo do Vitória FC) ---
     muro = Node()
     muro.name = "Muro"
     muro.render_data["mesh"] = get_mesh_cube()
-    muro.render_data["material"] = materialCube # Usa o material com a bandeira
-    muro.scale = np.array([20.0, 10.0, 0.5], dtype=np.float32)
-    muro.translation = np.array([0.0, 4.0, -15.0], dtype=np.float32) # Afastado em Z = -15.0
-    cena_vitoria.add_child(muro)
+    muro.render_data["material"] = materialCube 
+    muro.scale = np.array([60.0, 15.0, 0.5], dtype=np.float32)
+    muro.translation = np.array([0.0, 4.0, -5.1], dtype=np.float32) # Afastado em Z = -15.0
+    runtime.scene.add_child(muro)
 
     alejandro = urenderer.geometry.mesh.load_glb("assets/source/Alejandro.glb")
     alejandro.render_data["material"] = materialBasic
@@ -137,6 +143,7 @@ if __name__ == "__main__":
 
     # 5 jogadores distribuídos simetricamente no eixo X. 
     posicoes_x = np.linspace(-6.0, 6.0, 5)
+    posicoes_x2 = np.linspace(-3.0, 3.0, 5)
     def instanciar_jogador(posicao, nome):
         jogador = urenderer.geometry.mesh.load_glb("assets/source/Alejandro.glb")
         jogador.name = nome
@@ -150,22 +157,22 @@ if __name__ == "__main__":
             n.render_data["material"] = materialBasic
 
         # Rotação e Translação
-        jogador.rotation = np.array([30, 0, 0], np.float32)
+        jogador.rotation = np.array([10, 0, 0], np.float32)
         jogador.translation = posicao
         runtime.scene.add_child(jogador)
 
     # 1. Linha de Trás (Z = -5.0)
     for i in range(5):
-        pos = np.array([posicoes_x[i], 1.0, -6.0], dtype=np.float32)
+        pos = np.array([posicoes_x[i], -0.5, -2.0], dtype=np.float32)
         instanciar_jogador(pos, f"Jogador_Tras_{i}")
 
     # 2. Linha do Meio (Z = -2.0)
     for i in range(5):
-        pos = np.array([posicoes_x[i], -1.0, -6.0], dtype=np.float32)
+        pos = np.array([posicoes_x2[i], -1.0, -1.0], dtype=np.float32)
         instanciar_jogador(pos, f"Jogador_Meio_{i}")
 
     # 3. Jogador Destaque / Capitão (Frente, Z = 2.0)
-    pos_capitao = np.array([0.0, -3.0, -6.0], dtype=np.float32)
+    pos_capitao = np.array([0.0, -1.5, 0.0], dtype=np.float32)
     instanciar_jogador(pos_capitao, "Jogador_Destaque")
 
     # --- A BOLA ---
@@ -176,17 +183,18 @@ if __name__ == "__main__":
     bola.render_data["material"] = materialBasic 
     
     # Reduzimos a escala da primitiva para parecer uma bola de futebol
-    bola.scale = np.array([0.3, 0.3, 0.3], dtype=np.float32)
+    bola.translation = np.array([0.0, -1.7, -2.0], dtype=np.float32)
     
     # Posição: 
     # X = 0.0 (ao centro)
     # Y = -0.85 (para não ficar enterrada no chão, já que a esfera tem raio e o chão está em -1.0)
     # Z = -5.5 (um pouco à frente do capitão, que está em -6.0)
-    bola.translation = np.array([0.0, -5.0, -9.0], dtype=np.float32)
+    bola.translation = np.array([0.0, -5.0, -2.0], dtype=np.float32)
     
     runtime.scene.add_child(bola)
 
     runtime.camera.vertical_fov = 100.0
+    runtime.camera.translation = np.array([0.0, 1.0, 4.0], dtype=np.float32)
 
     # Adicionamos luzes a cena
 
@@ -196,13 +204,13 @@ if __name__ == "__main__":
     runtime.scene.add_child(light)
 
     light2 = urenderer.node.Light(urenderer.node.LightType.POINT)
-    light2.translation = np.array([-1, -1, -6], np.float64)
+    light2.translation = np.array([-1, -1, -2], np.float64)
     light2.light_color = np.array([0.0, 0.0, 1.0], np.float32)
     light2.light_intensity = 5.0
     runtime.scene.add_child(light2)
 
     light3 = urenderer.node.Light(urenderer.node.LightType.POINT)
-    light3.translation = np.array([1, -1, -6], np.float64)
+    light3.translation = np.array([1, -1, -2], np.float64)
     light3.light_color = np.array([1.0, 0.0, 1.0], np.float32)
     light3.light_intensity = 5.0
 
