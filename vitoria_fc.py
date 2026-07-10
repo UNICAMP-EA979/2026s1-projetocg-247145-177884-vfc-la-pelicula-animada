@@ -64,10 +64,9 @@ if __name__ == "__main__":
     materialBasic.set_texture(2, "roughnessTexture", whiteTextureR)
 
     materialMuro = Material(shader)
-    materialMuro.set_texture(0, "texture0", vitoriaBandeira)
-    materialMuro.set_texture(1, "metallicTexture", blackTextureR)
-    materialMuro.set_texture(2, "roughnessTexture", redTexture)
-    materialMuro.set_texture(3, "normalTexture", whiteTextureR)
+    materialMuro.set_texture(0, "baseColorTexture", vitoriaBandeira)
+    materialMuro.set_texture(1, "metallicTexture", brickMetallic)
+    materialMuro.set_texture(2, "roughnessTexture", brickRoughness)
 
         # NOVO MATERIAL: Criado exclusivamente para o chão
     materialGramado = Material(shader)
