@@ -44,6 +44,8 @@ class Texture:
         # Realiza o bind no contexto
         GL.glBindTexture(GL.GL_TEXTURE_2D, texture_id)
 
+        GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 1)
+
         # Define os parâmetros da textura
         self.parameters: dict[IntConstant, int] = {}
         for parameter, value in Texture._default_parameters.items():
@@ -109,8 +111,12 @@ class Texture:
         Returns:
             Texture: loaded texture
         '''
-        texture_data = cv.imread(path, cv.IMREAD_UNCHANGED)
-
+        texture_data = cv.imread(path, cv.IMREAD_COLOR)
+        
+        if texture_data.dtype == np.uint16:
+            # Converte dividindo por 256 (65536 / 256 = 256)
+            texture_data = (texture_data / 256).astype(np.uint8)
+        
         texture_data = np.flipud(texture_data)
 
         if texture_data.ndim == 2:

@@ -1,173 +1,280 @@
 from collections import deque
-
+import math
 import numpy as np
 import urenderer
 from OpenGL import GL
-from urenderer.node import Node
+
+# Importações do seu projeto
+from urenderer.node import Node, Light, LightType
 from urenderer.renderer.opengl import Material, Texture
+from urenderer.geometry.mesh.cube import get_mesh_cube
+from urenderer.geometry.mesh.glb import load_glb  
 
+NOME_DA_CENA = "tatico_vitoria_433"
 
-def update_rotation(node: Node, deltaTime: float, time_since_start: float) -> None:
+def animar_camera_estadio(node: Node, deltaTime: float, time_since_start: float) -> None:
+    """Faz a cena inteira rotacionar lentamente, criando um efeito de sobrevoo/panorâmica."""
+    # O valor 2.0 controla a velocidade do movimento (quanto menor, mais lento e suave)
+    # A rotação no eixo Y (índice 1) faz a câmera "rodar" ao redor do campo
+    node.rotation[1] = -25.0 + (time_since_start * 3.0) 
+    
+    # Opcional: leve balanço sutil na altura (eixo Y) ou inclinação para dar dinamismo de câmera real
+    node.rotation[0] = 15.0 + math.sin(time_since_start * 1.5) * 3.0
 
-    time_since_start /= 10
-    t = time_since_start - int(time_since_start)
+def animar_jogadores(node: Node, deltaTime: float, time_since_start: float) -> None:
+    """Faz os jogadores gingarem proceduralmente no Grafo de Cena."""
+    # Deslocamento senoidal no eixo Y (Flutuação original - já estava lá)
+    base_y = node.render_data.get("base_y", 0.0)
+    node.translation[1] = base_y + math.sin(4 * time_since_start) * 0.15
 
-    node.rotation[0] = 0
-    node.rotation[1] = 360*t
-    node.rotation[2] = 0
+    # --- NOVA ANIMAÇÃO PROCEDURAL ---
+    # Usamos o Grafo de Cena para aplicar rotações na peça inteira a partir do pivô nos pés.
+    
+    # 1. Inclinação de Corrida (Eixo X - Frente/Trás)
+    # math.sin(6...) dita a velocidade da passada. 
+    # O * 8.0 dita o ângulo máximo de inclinação em graus.
+    node.rotation[0] = math.sin(6 * time_since_start) * 12.0 # Inclina até 8 graus pra frente/trás
 
-
-def update_scale(node: Node, deltaTime: float, time_since_start: float) -> None:
-    scale = np.sin(5*time_since_start)/10
-    scale += 0.8
-
-    node.scale = scale * np.ones(3)
-
-
-def update_cube(node: Node, deltaTime: float, time_since_start: float) -> None:
-
-    # Posição = dv/dt -> posição_t = posição_{t-1}+DeltaT*v
-    center: np.array = node.center
-    position = node.translation
-
-    r = position-center
-
-    r_2d = np.array([r[0], r[2]])
-    v_dir = np.array([-r_2d[1], r_2d[0]])
-
-    v = v_dir*node.angular_velocity
-    v = np.array([v[0], 0.0, v[1]])
-
-    node.translation += deltaTime*v
-
-    # Rotação = f(tempo)
-    time_since_start /= 10
-    t = time_since_start - int(time_since_start)
-    node.rotation[0] = 0
-    node.rotation[1] = -360*node.angular_velocity*t
-    node.rotation[2] = 0
-
-
-# Podemos dar um nome a cena
-NOME_DA_CENA = "minha_cena"
+    # 2. Gingado Lateral (Eixo Z)
+    # Usamos cosseno (math.cos) para que o gingado lateral esteja fora de fase 
+    # com a inclinação de corrida, criando um movimento mais natural.
+    node.rotation[2] = math.cos(6 * time_since_start) * 2.0 # Gingado de 5 graus
 
 if __name__ == "__main__":
     urenderer.utils.clear_workdir(NOME_DA_CENA)
-    renderer = urenderer.renderer.OpenGLRenderer(1920, 1080)
-    renderer.background_color = np.array([0, 0, 0, 1], np.float32)
-    runtime = urenderer.application.Runtime(
-        renderer, name=NOME_DA_CENA)
-
-    # Configuramos a luz ambiente da cena
-    renderer.ambient_color = np.array([0.1, 0.1, 0.1], dtype=np.float32)
-
-    # Carregamos o shader e texturas
-    shader = urenderer.renderer.Shader(
-        "assets/vertex.vs", "assets/05-fragment.fs")
-
-    whiteTextureR = Texture(255*np.ones((1, 1), np.uint8), GL.GL_RED, GL.GL_R8)
+    
+    # -------------------------------------------------------------------------
+    # 1. SETUP DO RENDERIZADOR OPENGL
+    # -------------------------------------------------------------------------
+    width, height = 1920, 1080
+    renderer = urenderer.renderer.OpenGLRenderer(width, height)
+    
+    # Fundo de "noite de jogo"
+    renderer.background_color = np.array([0.05, 0.05, 0.05, 1.0], np.float32)
+    # Luz ambiente para não deixar sombras totalmente pretas
+    renderer.ambient_color = np.array([0.25, 0.25, 0.25], dtype=np.float32)
+    
+    runtime = urenderer.application.Runtime(renderer, name=NOME_DA_CENA)
+    runtime.camera.vertical_fov = 60.0
+    runtime.camera.far_plane = 100.0
+    
+    # -------------------------------------------------------------------------
+    # 2. SHADERS E TEXTURAS
+    # -------------------------------------------------------------------------
+    shader = urenderer.renderer.Shader("assets/vertex.vs", "assets/05-fragment.fs")
+    
     blackTextureR = Texture(np.zeros((1, 1), np.uint8), GL.GL_RED, GL.GL_R8)
+    whiteTextureR = Texture(255 * np.ones((1, 1), np.uint8), GL.GL_RED, GL.GL_R8)
+    
+    # Texturas do Campo (Lembre-se de colocar as imagens na pasta assets)
+    textura_gramado = Texture.load_file("assets/grass/Grass001_1K-PNG_Color.png", srgb=True, drop_alpha=True)
+    textura_gramado_rough = Texture.load_file("assets/grass/Grass001_1K-PNG_Roughness.png", drop_alpha=True)
+    textura_gramado_normal = Texture.load_file("assets/grass/Grass001_1K-PNG_NormalGL.png", drop_alpha=True)
+    
+    # Escudo do Vitória (drop_alpha=False para manter a transparência se for PNG)
+    logo_vitoria = Texture.load_file("assets/vitoria_bandeira.jpg", srgb=True, drop_alpha=False)
+    
+    textura_uniforme = Texture.load_file("assets/camisa_vitoria.png", srgb=True, drop_alpha=True)
 
-    whiteTexture = Texture(255*np.ones((1, 1, 3), np.uint8),
-                           GL.GL_RGB, GL.GL_RGB)
-    blackTexture = Texture(np.zeros((1, 1, 3), np.uint8),
-                           GL.GL_RGB, GL.GL_RGB)
+    # -------------------------------------------------------------------------
+    # 3. MATERIAIS DO CENÁRIO
+    # -------------------------------------------------------------------------
+    textura_atlas = Texture.load_file("assets/textura_base.png", srgb=True, drop_alpha=True)
 
-    starrySkyTexture = Texture.load_file("assets/Blue-universe-956981.jpg",
-                                         srgb=True, drop_alpha=True)
+    material_arquibancada = Material(shader)
+    material_arquibancada.set_texture(0, "baseColorTexture", textura_uniforme)
+    material_arquibancada.set_texture(1, "metallicTexture", blackTextureR)    
+    material_arquibancada.set_texture(2, "roughnessTexture", whiteTextureR)  
+    material_arquibancada.set_uniform("tiling", 1.0)
 
-    rockBasecolor = Texture.load_file("assets/Rock035_1K-JPG/Rock035_1K-JPG_Color.jpg",
-                                      srgb=True, drop_alpha=True)
-    rockRoughness = Texture.load_file("assets/Rock035_1K-JPG/Rock035_1K-JPG_Roughness.jpg",
-                                      drop_alpha=True)
+    roughness_media = Texture(np.full((1, 1), 100, dtype=np.uint8), GL.GL_RED, GL.GL_R8)
+    material_jogador = Material(shader)
+    material_jogador.set_texture(0, "baseColorTexture", textura_atlas)
+    material_jogador.set_texture(1, "metallicTexture", blackTextureR)   # Roupa/pele 
+    material_jogador.set_texture(2, "roughnessTexture", roughness_media)  # Material fosco
+    material_jogador.set_uniform("tiling", 1.0) 
 
-    materialBasic = Material(shader)
-    materialBasic.set_texture(0, "baseColorTexture", whiteTexture)
-    materialBasic.set_texture(1, "metallicTexture", blackTextureR)
-    materialBasic.set_texture(2, "roughnessTexture", whiteTextureR)
+    material_campo = Material(shader)
+    material_campo.set_texture(0, "baseColorTexture", textura_gramado)
+    material_campo.set_texture(1, "metallicTexture", blackTextureR)
+    material_campo.set_texture(2, "roughnessTexture", textura_gramado_rough)
+    material_campo.set_texture(3, "normalTexture", textura_gramado_normal) 
+    material_campo.set_uniform("tiling", 12.0)
+    
+    material_logo = Material(shader)
+    material_logo.set_texture(0, "baseColorTexture", logo_vitoria)
+    material_logo.set_texture(1, "metallicTexture", blackTextureR)
+    material_logo.set_texture(2, "roughnessTexture", whiteTextureR)
+    material_logo.set_uniform("tiling", 1.0)
+    
+    # -------------------------------------------------------------------------
+    # 4. GRAFO DE CENA
+    # -------------------------------------------------------------------------
+    cena_root = Node(name="Cena_Principal")
 
-    materialBackground = Material(shader)
-    materialBackground.set_texture(0, "baseColorTexture", starrySkyTexture)
-    materialBackground.set_texture(1, "metallicTexture", blackTextureR)
-    materialBackground.set_texture(2, "roughnessTexture", whiteTextureR)
-    materialBackground.set_uniform("tiling", 10.0)
+   #O Gramado (Cubo achatado)
+    no_campo = Node(name="Gramado")
+    no_campo.render_data["mesh"] = get_mesh_cube()
+    no_campo.render_data["material"] = material_campo
+    no_campo.scale = np.array([30.0, 0.05, 35.0], dtype=np.float32)
+    no_campo.translation = np.array([-4.5, -8.0, -3.0], dtype=np.float32)
+    no_campo.rotation = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+    cena_root.add_child(no_campo)
 
-    materialCube = Material(shader)
-    materialCube.set_texture(0, "baseColorTexture", rockBasecolor)
-    materialCube.set_texture(1, "metallicTexture", blackTextureR)
-    materialCube.set_texture(2, "roughnessTexture", rockRoughness)
+# --- ARQUIBANCADA 1 ---
+    no_arquibancada = load_glb("assets/estrutura_arquibancada_02.glb")
+    no_arquibancada.name = "Arquibancada1"
+    no_arquibancada.scale = np.array([0.01, 0.01, 0.01], dtype=np.float32)
+    no_arquibancada.translation = np.array([11.0, -8.0, 16.0], dtype=np.float32)
+    no_arquibancada.rotation = np.array([-90.0, 0.0, 0.0], dtype=np.float32)
+    
+    # Aplica o material em todas as submalhas filhas da Arquibancada 1
+    fila_arq1 = deque([no_arquibancada])
+    while len(fila_arq1) > 0:
+        atual = fila_arq1.popleft()
+        if "mesh" in atual.render_data:
+            atual.render_data["material"] = material_arquibancada # ou outro material de sua preferência
+        for child in atual.children:
+            fila_arq1.append(child)
+    cena_root.add_child(no_arquibancada)
 
-    # Carregamos a cena (ou poderia ser criada com primitivas)
-    glb_root = urenderer.geometry.mesh.load_glb("assets/CenaExemplo.glb")
+    # --- ARQUIBANCADA 2  ---
+    no_arquibancada2 = load_glb("assets/estrutura_arquibancada_02.glb")
+    no_arquibancada2.name = "Arquibancada2"
+    no_arquibancada2.scale = np.array([0.01, 0.01, 0.01], dtype=np.float32)
+    no_arquibancada2.translation = np.array([-20.0, -8.0, -35.0], dtype=np.float32) # Alinhada no Y com a outra (-10.0)
+    no_arquibancada2.rotation = np.array([-90.0, 0.0, 180.0], dtype=np.float32) # Mesma rotação para ficar orientada igual
+    
+    # Aplica o material em todas as submalhas filhas da Arquibancada 2
+    fila_arq2 = deque([no_arquibancada2])
+    while len(fila_arq2) > 0:
+        atual = fila_arq2.popleft()
+        if "mesh" in atual.render_data:
+            atual.render_data["material"] = material_arquibancada
+        for child in atual.children:
+            fila_arq2.append(child)
+    cena_root.add_child(no_arquibancada2)
 
-    nodes = deque([glb_root])
-    while len(nodes) != 0:
-        node = nodes.pop()
-        nodes += node.children
+    # no_arquibancada_frontal = load_glb("assets/estrutura_arquibancada_02.glb")
+    # no_arquibancada_frontal.name = "ArquibancadaFrontal"
+    # no_arquibancada_frontal.scale = np.array([0.005, 0.01, 0.005], dtype=np.float32)
+    
+    # # Posicionada no fundo do campo (ajuste o X e o Z se precisar centralizar perfeitamente)
+    # no_arquibancada_frontal.translation = np.array([0.0, -10.0, 15.0], dtype=np.float32)
+    
+    # # Rotação ajustada para virar a bancada para dentro do campo no fundo
+    # no_arquibancada_frontal.rotation = np.array([-90.0, 0.0, 90.0], dtype=np.float32)
+    
+    # # Aplica o material em todas as submalhas filhas da Arquibancada Frontal
+    # fila_arq_frontal = deque([no_arquibancada_frontal])
+    # while len(fila_arq_frontal) > 0:
+    #     atual = fila_arq_frontal.popleft()
+    #     if "mesh" in atual.render_data:
+    #         atual.render_data["material"] = material_jogador
+    #     for child in atual.children:
+    #         fila_arq_frontal.append(child)
+            
+    # cena_root.add_child(no_arquibancada_frontal)
+    # no_campo = load_glb("assets/low_poly_football_pitch.glb")
+    # no_campo.name = "Estadio_Campo"
+    # no_campo.scale = np.array([1.0, 1.0, 1.0], dtype=np.float32)  # Ajuste a escala se necessário
+    # no_campo.translation = np.array([0.0, -0.025, 0.0], dtype=np.float32)
+    # cena_root.add_child(no_campo)
 
-        if node.name == "Icosphere":
-            center = node.translation
+    from collections import deque
+    fila_campo = deque([no_arquibancada])
+    while len(fila_campo) > 0:
+        atual = fila_campo.popleft()
+        # Se o objeto tiver uma malha mas não tiver material atribuído, 
+        # aplicamos o material padrão ou garantimos que ele seja renderizado
+        if "mesh" in atual.render_data and "material" not in atual.render_data:
+            atual.render_data["material"] = material_campo  # reaproveita o material do gramado
+        for filho in atual.children:
+            fila_campo.append(filho)
 
-    # Definimos materiais para os elementos da cena
-    nodes = deque([glb_root])
-    last_cube = None
-    while len(nodes) != 0:
-        node = nodes.pop()
-        nodes += node.children
+    # O Placar / Escudo do Vitória ao fundo
+    no_logo = Node(name="Placar")
+    no_logo.render_data["mesh"] = get_mesh_cube()
+    no_logo.render_data["material"] = material_logo
+    no_logo.scale = np.array([36.0, 22.0, 0.2], dtype=np.float32) # Proporção 16:9 de um placar real
+    no_logo.translation = np.array([-5.0, 2.0, -35.0], dtype=np.float32)
+    no_logo.rotation = np.array([0.0, 0.0, 0.0], dtype=np.float32) # Virado para a câmera
+    cena_root.add_child(no_logo)
+    
+    # As posições táticas (4-3-3)
+    posicoes_433 = [
+        (-5.0, -7.5, 10.0),     # Goleiro 
+        (-12.5, -7.5, 5.0),    # Lateral Esq
+        (-8.0, -7.5, 6.0),    # Zag Esq
+        (-2.0, -7.5, 6.0),     # Zag Dir
+        (2.5, -7.5, 5.0),     # Lateral Dir
+        (-5.0, -7.5, 3.0),      # Volante
+        (-10.0, -7.5, -1.5),    # Meia Esq
+        (0.0, -7.5, -1.5),     # Meia Dir
+        (-12.0, -7.5, -5.0),    # Ponta Esq
+        (2.0, -7.5, -5.0),     # Ponta Dir
+        (-5.0, -7.5, -10.0)     # Centroavante 
+    ]
+    
+    time_node = Node(name="Time_Vitoria")
+    cena_root.add_child(time_node)
+    
+    for idx, pos in enumerate(posicoes_433):
+        jogador_root = load_glb("assets/low_poly_soccer_player.glb")
+        jogador_root.name = f"Jogador_{idx}"
+        
+        jogador_root.translation = np.array(pos, dtype=np.float32)
+        jogador_root.render_data["base_y"] = pos[1]
+        jogador_root.scale = np.array([0.015, 0.015, 0.015], dtype=np.float32)
+        jogador_root.rotation = np.array([0.0, 0.0, 0.0], dtype=np.float32) 
+        
+        jogador_root.callbacks = [animar_jogadores]
+        
+        # PERCURSO NA ÁRVORE (BFS)
+        fila_de_nos = deque([jogador_root])
+        while len(fila_de_nos) > 0:
+            no_atual = fila_de_nos.popleft()
+            
+            if "mesh" in no_atual.render_data:
+                # COMO É UM ATLAS, APLICAMOS O MESMO MATERIAL EM TODOS OS NÓS!
+                # O UV de cada peça vai isolar o rosto, a calça e a camisa sozinho.
+                no_atual.render_data["material"] = material_jogador 
+                
+            for child in no_atual.children:
+                fila_de_nos.append(child)
+                
+        time_node.add_child(jogador_root)
+        
+    # Posicionando a câmera da cena inteira (Visão Isométrica/TV)
+    cena_root.translation = np.array([0.0, -8.0, -45.0], dtype=np.float32)
+    cena_root.rotation = np.array([15.0, -25.0, 0.0], dtype=np.float32) 
+    cena_root.callbacks = [animar_camera_estadio]
+    runtime.scene.add_child(cena_root)
+    
+    # -------------------------------------------------------------------------
+    # 5. LUZES DO ESTÁDIO
+    # -------------------------------------------------------------------------
+    luz_global = Light(LightType.DIRECTIONAL)
+    luz_global.rotation = np.array([45.0, 30.0, 0.0], np.float64)
+    luz_global.light_intensity = 1.0
+    runtime.scene.add_child(luz_global)
+   
+    refletor_esq = Light(LightType.POINT)
+    refletor_esq.translation = np.array([-12.0, 10.0, 5.0], np.float64)
+    refletor_esq.light_color = np.array([0.9, 0.9, 1.0], np.float32)
+    refletor_esq.light_intensity = 80.0
+    cena_root.add_child(refletor_esq)
+    
+    refletor_dir = Light(LightType.POINT)
+    refletor_dir.translation = np.array([12.0, 10.0, 5.0], np.float64)
+    refletor_dir.light_color = np.array([1.0, 0.9, 0.9], np.float32)
+    refletor_dir.light_intensity = 80.0
+    cena_root.add_child(refletor_dir)
 
-        node.render_data["material"] = materialBasic
-
-        # Podemos definir o material pelo nome do nó, ou um padrão no nome
-        if node.name == "Plane":
-            node.render_data["material"] = materialBackground
-        if "Cube" in node.name:
-            node.render_data["material"] = materialCube
-
-        # Podemos animar os objetos da cena:
-        if node.name == "Icosphere":
-            node.callbacks = [update_rotation, update_scale]
-        if "Cube" in node.name:
-            node.center = center
-            node.angular_velocity = 0.5
-            node.callbacks = [update_cube]
-            last_cube = node
-
-    # Movimentamos a cena para a posição desejada
-    glb_root.translation = np.array([0, 0, -7])
-    glb_root.rotation = np.array([30, 0, 0], np.float32)
-    runtime.scene.add_child(glb_root)
-
-    # Podemos alterar propriedades da câmera
-    runtime.camera.vertical_fov = 90.0
-
-    # Adicionamos luzes a cena
-
-    light = urenderer.node.Light(urenderer.node.LightType.DIRECTIONAL)
-    light.rotation = np.array([45, 45, 45], np.float64)
-    light.light_intensity = 3.0
-    runtime.scene.add_child(light)
-
-    light2 = urenderer.node.Light(urenderer.node.LightType.POINT)
-    light2.translation = np.array([-1, -1, -6], np.float64)
-    light2.light_color = np.array([0.0, 0.0, 1.0], np.float32)
-    light2.light_intensity = 5.0
-    runtime.scene.add_child(light2)
-
-    light3 = urenderer.node.Light(urenderer.node.LightType.POINT)
-    # light3.translation = np.array([1, -1, -6], np.float64)
-    light3.light_color = np.array([1.0, 0.0, 1.0], np.float32)
-    light3.light_intensity = 5.0
-    last_cube.add_child(light3)
-
-    # Renderizamos a cena
-
-    video = True
-    if video:
-        # Renderização salvando video
-        # Podemos ajustar os parâmetros para alterar o tamanho ou frequência de sampling
-        runtime.loop(n=4000, capture=np.arange(0, 4000, 40, dtype=np.int32))
-        urenderer.utils.image_to_video(NOME_DA_CENA, fps=30)
-        urenderer.utils.clear_workdir(NOME_DA_CENA, image_only=True)
-    else:
-        # Renderização salvando frames
-        runtime.loop(capture=[1])
+    # -------------------------------------------------------------------------
+    # 6. RENDERIZAÇÃO
+    # -------------------------------------------------------------------------
+    # Gera um loop de 200 frames capturando a 60fps (Vídeo liso de ~3.3 segundos)
+    runtime.loop(n=500, capture=np.arange(0, 500, 1, dtype=np.int32))
+    urenderer.utils.image_to_video(NOME_DA_CENA, fps=60)
+    urenderer.utils.clear_workdir(NOME_DA_CENA, image_only=True)
