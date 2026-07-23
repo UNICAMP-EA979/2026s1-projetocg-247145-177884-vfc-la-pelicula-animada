@@ -22,46 +22,73 @@ def animar_camera_estadio(node: Node, deltaTime: float, time_since_start: float)
     node.rotation[0] = 15.0 + math.sin(time_since_start * 1.5) * 3.0
 
 def animar_jogadores(node: Node, deltaTime: float, time_since_start: float) -> None:
-    """Anima os jogadores no campo: gingado procedural + movimentação tática dinâmica."""
+    """Anima os jogadores com alternância entre Jogada 1 (Direita) e Jogada 2 (Esquerda)."""
     idx = node.render_data.get("idx", -1)
     base_pos = node.render_data.get("base_pos", np.array([0.0, 0.0, 0.0], dtype=np.float32))
 
-    # Fator de interpolação tática entre 0.0 (início) e 1.0 (avançado)
-    # O valor 1.2 controla o ritmo da jogada (quanto maior, mais rápida a ida/volta)
-    fator = (math.sin(time_since_start * 1.2) + 1.0) / 2.0 
+    # --- CONTROLE DO CICLO DAS JOGADAS ---
+    tempo_jogada = 4.0  # Cada jogada completa (ida e volta) dura 4 segundos
+    tempo_total_ciclo = tempo_jogada * 2.0  # 8 segundos para o ciclo completo (Jogada 1 + Jogada 2)
+    
+    t = time_since_start % tempo_total_ciclo
+    
+    # Determina qual jogada está ativa e calcula o fator suave (0.0 -> 1.0 -> 0.0)
+    if t < tempo_jogada:
+        jogada_ativa = 1
+        # Curva suave Cossoidal: inicia em 0, atinge 1.0 no meio da jogada e volta a 0 no fim
+        fator = (1.0 - math.cos((t / tempo_jogada) * 2.0 * math.pi)) / 2.0
+    else:
+        jogada_ativa = 2
+        t_fase2 = t - tempo_jogada
+        fator = (1.0 - math.cos((t_fase2 / tempo_jogada) * 2.0 * math.pi)) / 2.0
 
-    # Vetor de deslocamento tático específico para cada jogador
     offset_tatico = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+    if jogada_ativa == 1:
+        if idx == 4:  # Lateral Direito: Dispara até a linha de fundo
+            offset_tatico = np.array([-0.5, 0.0, -22.0], dtype=np.float32)
 
-    if idx == 4:  # Lateral Direito: Dispara até a linha de fundo
-        offset_tatico = np.array([-0.5, 0.0, -22.0], dtype=np.float32)
+        elif idx == 1:  # Lateral Esquerdo: Fecha por dentro formando a ponta esquerda da linha de 3
+            offset_tatico = np.array([2.5, 0.0, 0.5], dtype=np.float32)  # Desliza para X: -5.0
 
-    elif idx == 1:  # Lateral Esquerdo: Fecha por dentro formando a ponta esquerda da linha de 3
-        offset_tatico = np.array([2.5, 0.0, 0.5], dtype=np.float32)  # Desliza para X: -5.0
+        elif idx == 2:  # Zagueiro Esquerdo: Bascula para a direita ocupando o centro da linha de 3
+            offset_tatico = np.array([2.0, 0.0, 0.0], dtype=np.float32)  # Desliza para X: -1.5
 
-    elif idx == 2:  # Zagueiro Esquerdo: Bascula para a direita ocupando o centro da linha de 3
-        offset_tatico = np.array([2.0, 0.0, 0.0], dtype=np.float32)  # Desliza para X: -1.5
+        elif idx == 3:  # Zagueiro Direito: Cobre diretamente a vaga do Lateral Direito
+            offset_tatico = np.array([2.0, 0.0, -1.0], dtype=np.float32) # Desliza para X: 5.0
 
-    elif idx == 3:  # Zagueiro Direito: Cobre diretamente a vaga do Lateral Direito
-        offset_tatico = np.array([2.0, 0.0, -1.0], dtype=np.float32) # Desliza para X: 5.0
+        elif idx == 1:  # Lateral Esquerdo: Fecha por dentro e compõe linha de 3 zagueiros
+            offset_tatico = np.array([2.0, 0.0, 1.0], dtype=np.float32)
 
-    elif idx == 1:  # Lateral Esquerdo: Fecha por dentro e compõe linha de 3 zagueiros
-        offset_tatico = np.array([2.0, 0.0, 1.0], dtype=np.float32)
+        elif idx == 6:  # Meia Esquerdo: Abre a amplitude na esquerda
+            offset_tatico = np.array([-2.5, 0.0, -1.0], dtype=np.float32)
 
-    elif idx == 6:  # Meia Esquerdo: Abre a amplitude na esquerda
-        offset_tatico = np.array([-2.5, 0.0, -1.0], dtype=np.float32)
+        elif idx == 7:  # Meia Direito: Abre a amplitude na direita
+            offset_tatico = np.array([2.5, 0.0, -1.0], dtype=np.float32)
 
-    elif idx == 7:  # Meia Direito: Abre a amplitude na direita
-        offset_tatico = np.array([2.5, 0.0, -1.0], dtype=np.float32)
+        elif idx == 8:  # Ponta Esquerdo: Corta da ponta para o meio (abrir corredor pro lateral)
+            offset_tatico = np.array([4.5, 0.0, -6.0], dtype=np.float32)
 
-    elif idx == 8:  # Ponta Esquerdo: Corta da ponta para o meio (abrir corredor pro lateral)
-        offset_tatico = np.array([4.5, 0.0, -6.0], dtype=np.float32)
+        elif idx == 9:  # Ponta Direito: Corta da ponta para o meio (abrir corredor pro lateral)
+            offset_tatico = np.array([-4.5, 0.0, -2.0], dtype=np.float32)
 
-    elif idx == 9:  # Ponta Direito: Corta da ponta para o meio (abrir corredor pro lateral)
-        offset_tatico = np.array([-4.5, 0.0, -2.0], dtype=np.float32)
+        elif idx == 10: # Centroavante: Infiltra fundo na grande área
+            offset_tatico = np.array([2.0, 0.0, -5.0], dtype=np.float32)
 
-    elif idx == 10: # Centroavante: Infiltra fundo na grande área
-        offset_tatico = np.array([2.0, 0.0, -5.0], dtype=np.float32)
+    elif jogada_ativa == 2:
+        if idx == 1:    # Lateral Esquerdo: Dispara até a linha de fundo na esquerda
+            offset_tatico = np.array([0.5, 0.0, -22.0], dtype=np.float32)
+        elif idx == 4:  # Lateral Direito: Fecha a ponta direita da linha de 3
+            offset_tatico = np.array([-2.5, 0.0, 0.5], dtype=np.float32)
+        elif idx == 3:  # Zagueiro Direito: Bascula para o centro da zaga
+            offset_tatico = np.array([-1.5, 0.0, 0.0], dtype=np.float32)
+        elif idx == 2:  # Zagueiro Esquerdo: Cobre a vaga do LE
+            offset_tatico = np.array([-2.0, 0.0, -1.0], dtype=np.float32)
+        elif idx == 8:  # Ponta Esquerdo: Corta para dentro em direção à área
+            offset_tatico = np.array([4.5, 0.0, -2.0], dtype=np.float32)
+        elif idx == 5:  # Volante: Infiltra na entrada da grande área
+            offset_tatico = np.array([0.0, 0.0, -4.0], dtype=np.float32)
+        elif idx == 10: # Centroavante: Puxa a marcação para o primeiro pau
+            offset_tatico = np.array([-2.0, 0.0, -5.0], dtype=np.float32)
 
     # 1. Posição Tática com deslocamento suave
     pos_tatica = base_pos + (offset_tatico * fator)
