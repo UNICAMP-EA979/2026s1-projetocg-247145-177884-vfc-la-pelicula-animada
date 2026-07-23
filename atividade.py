@@ -309,7 +309,6 @@ if __name__ == "__main__":
     # -------------------------------------------------------------------------
     # 6. RENDERIZAÇÃO
     # -------------------------------------------------------------------------
-    # Gera um loop de 200 frames capturando a 60fps (Vídeo liso de ~3.3 segundos)
     runtime.loop(n=500, capture=np.arange(0, 500, 1, dtype=np.int32))
     urenderer.utils.image_to_video(NOME_DA_CENA, fps=60)
     urenderer.utils.clear_workdir(NOME_DA_CENA, image_only=True)
