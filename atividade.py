@@ -22,23 +22,58 @@ def animar_camera_estadio(node: Node, deltaTime: float, time_since_start: float)
     node.rotation[0] = 15.0 + math.sin(time_since_start * 1.5) * 3.0
 
 def animar_jogadores(node: Node, deltaTime: float, time_since_start: float) -> None:
-    """Faz os jogadores gingarem proceduralmente no Grafo de Cena."""
-    # Deslocamento senoidal no eixo Y (Flutuação original - já estava lá)
-    base_y = node.render_data.get("base_y", 0.0)
-    node.translation[1] = base_y + math.sin(4 * time_since_start) * 0.15
+    """Anima os jogadores no campo: gingado procedural + movimentação tática dinâmica."""
+    idx = node.render_data.get("idx", -1)
+    base_pos = node.render_data.get("base_pos", np.array([0.0, 0.0, 0.0], dtype=np.float32))
 
-    # --- NOVA ANIMAÇÃO PROCEDURAL ---
-    # Usamos o Grafo de Cena para aplicar rotações na peça inteira a partir do pivô nos pés.
-    
-    # 1. Inclinação de Corrida (Eixo X - Frente/Trás)
-    # math.sin(6...) dita a velocidade da passada. 
-    # O * 8.0 dita o ângulo máximo de inclinação em graus.
-    node.rotation[0] = math.sin(6 * time_since_start) * 12.0 # Inclina até 8 graus pra frente/trás
+    # Fator de interpolação tática entre 0.0 (início) e 1.0 (avançado)
+    # O valor 1.2 controla o ritmo da jogada (quanto maior, mais rápida a ida/volta)
+    fator = (math.sin(time_since_start * 1.2) + 1.0) / 2.0 
 
-    # 2. Gingado Lateral (Eixo Z)
-    # Usamos cosseno (math.cos) para que o gingado lateral esteja fora de fase 
-    # com a inclinação de corrida, criando um movimento mais natural.
-    node.rotation[2] = math.cos(6 * time_since_start) * 2.0 # Gingado de 5 graus
+    # Vetor de deslocamento tático específico para cada jogador
+    offset_tatico = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+
+    if idx == 4:  # Lateral Direito: Dispara até a linha de fundo
+        offset_tatico = np.array([-0.5, 0.0, -22.0], dtype=np.float32)
+
+    elif idx == 1:  # Lateral Esquerdo: Fecha por dentro formando a ponta esquerda da linha de 3
+        offset_tatico = np.array([2.5, 0.0, 0.5], dtype=np.float32)  # Desliza para X: -5.0
+
+    elif idx == 2:  # Zagueiro Esquerdo: Bascula para a direita ocupando o centro da linha de 3
+        offset_tatico = np.array([2.0, 0.0, 0.0], dtype=np.float32)  # Desliza para X: -1.5
+
+    elif idx == 3:  # Zagueiro Direito: Cobre diretamente a vaga do Lateral Direito
+        offset_tatico = np.array([2.0, 0.0, -1.0], dtype=np.float32) # Desliza para X: 5.0
+
+    elif idx == 1:  # Lateral Esquerdo: Fecha por dentro e compõe linha de 3 zagueiros
+        offset_tatico = np.array([2.0, 0.0, 1.0], dtype=np.float32)
+
+    elif idx == 6:  # Meia Esquerdo: Abre a amplitude na esquerda
+        offset_tatico = np.array([-2.5, 0.0, -1.0], dtype=np.float32)
+
+    elif idx == 7:  # Meia Direito: Abre a amplitude na direita
+        offset_tatico = np.array([2.5, 0.0, -1.0], dtype=np.float32)
+
+    elif idx == 8:  # Ponta Esquerdo: Corta da ponta para o meio (abrir corredor pro lateral)
+        offset_tatico = np.array([4.5, 0.0, -6.0], dtype=np.float32)
+
+    elif idx == 9:  # Ponta Direito: Corta da ponta para o meio (abrir corredor pro lateral)
+        offset_tatico = np.array([-4.5, 0.0, -2.0], dtype=np.float32)
+
+    elif idx == 10: # Centroavante: Infiltra fundo na grande área
+        offset_tatico = np.array([2.0, 0.0, -5.0], dtype=np.float32)
+
+    # 1. Posição Tática com deslocamento suave
+    pos_tatica = base_pos + (offset_tatico * fator)
+    node.translation[0] = pos_tatica[0]
+    node.translation[2] = pos_tatica[2]
+
+    # 2. Passada/Flutuação procedural no eixo Y
+    node.translation[1] = pos_tatica[1] + math.sin(4 * time_since_start) * 0.15
+
+    # 3. Gingado da corrida (eixos X e Z)
+    node.rotation[0] = math.sin(6 * time_since_start) * 12.0
+    node.rotation[2] = math.cos(6 * time_since_start) * 2.0
 
 if __name__ == "__main__":
     urenderer.utils.clear_workdir(NOME_DA_CENA)
@@ -224,22 +259,22 @@ if __name__ == "__main__":
         jogador_root.name = f"Jogador_{idx}"
         
         jogador_root.translation = np.array(pos, dtype=np.float32)
-        jogador_root.render_data["base_y"] = pos[1]
+        
+        # REGISTRA O ÍNDICE E A POSIÇÃO BASE PARA O CALLBACK
+        jogador_root.render_data["idx"] = idx
+        jogador_root.render_data["base_pos"] = np.array(pos, dtype=np.float32)
+        
         jogador_root.scale = np.array([0.015, 0.015, 0.015], dtype=np.float32)
         jogador_root.rotation = np.array([0.0, 0.0, 0.0], dtype=np.float32) 
         
         jogador_root.callbacks = [animar_jogadores]
         
-        # PERCURSO NA ÁRVORE (BFS)
+        # BFS para atribuir o material do atleta
         fila_de_nos = deque([jogador_root])
         while len(fila_de_nos) > 0:
             no_atual = fila_de_nos.popleft()
-            
             if "mesh" in no_atual.render_data:
-                # COMO É UM ATLAS, APLICAMOS O MESMO MATERIAL EM TODOS OS NÓS!
-                # O UV de cada peça vai isolar o rosto, a calça e a camisa sozinho.
                 no_atual.render_data["material"] = material_jogador 
-                
             for child in no_atual.children:
                 fila_de_nos.append(child)
                 
