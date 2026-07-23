@@ -12,7 +12,7 @@ Também sugerimos que leiam inteiramente este documento antes de iniciar o proje
 Vocês devem entregar neste Projeto:
 
 - Descrição de cena: descrição de cena que implementaram (no final deste documento).
-- Código: código Python utilizado para implementar a cena. O ponto de entrada da cena deve ser `vitoria_fc.py`
+- Código: código Python utilizado para implementar a cena. O ponto de entrada da cena deve ser `atividade.py`
 - Assets: todo shader, modelo, textura e outros utilizado para implementar a cena. Devem estar na pasta `assets`
 - Lista de Assets: lista de todos os assets baixados da internet (no final deste documento).
 - Cena final renderizada: podendo ser tanto uma imagem quanto um vídeo.
@@ -57,7 +57,9 @@ O projeto será avaliado segundo:
 ## Descrição da cena
 
 ### **Conceito e Proposta**
-A cena implementada recria uma simulação de esquema tático (4-3-3) de uma equip de futebol, para nosso projeto escolhemos o vitória, onde haveria a simulação de um estádio e a equipe exposta no campo, além do simbolo do clube exposto atrá do campo. A inspiração para o projeto foi um elemento utilizado no Globo Esporte, programa esportivo da Rede Globo, onde eles tinham um quadro do programa em que faziam as simulações das equipes no campo em um equipamento em que chamava de "mesa tática", na qual havia simulações 3d dos jogadores no campo, em miniatura, encima dessa mesa.   
+A cena implementada recria uma simulação de esquema tático (4-3-3) de uma equip de futebol, para nosso projeto escolhemos o vitória, onde haveria a simulação de um estádio e a equipe exposta no campo, além do simbolo do clube exposto atrá do campo. A inspiração para o projeto foi um elemento utilizado no Globo Esporte, programa esportivo da Rede Globo, onde eles tinham um quadro do programa em que faziam as simulações das equipes no campo em um equipamento em que chamava de "mesa tática", na qual havia simulações 3d dos jogadores no campo, em miniatura, encima dessa mesa.
+
+![Texto Alternativo](./referencia/mesa_tatica.jpg)   
 
 ### **Elementos da Cena e Geometria**
 1. **Gramado com Marcações de Campo:**
@@ -86,7 +88,7 @@ A cena implementada recria uma simulação de esquema tático (4-3-3) de uma equ
 
 ### **Animação**
 * **Atletas:** Aplicação de callbacks que alteram a rotação e a altura dos nós dos jogadores em função do tempo (`math.sin` e `math.cos`), simulando passadas de corrida e balanço lateral.
-* **Câmera de Sobrevoo (Camera Flyover):** Animação fluida da cena raiz (`cena_root`) que rotaciona a perspectiva suavemente em torno do estádio, cobrindo a visão panorâmica do campo e das arquibancadas ao longo da renderização do vídeo.
+* **Câmera de Sobrevoo (Camera Flyover):** Animação da cena raiz (`cena_root`) que rotaciona a perspectiva suavemente em torno do estádio, cobrindo a visão panorâmica do campo e das arquibancadas ao longo da renderização do vídeo.
 
 ---
 
@@ -94,5 +96,4 @@ A cena implementada recria uma simulação de esquema tático (4-3-3) de uma equ
 
 - **Low Poly Soccer Player**: `Creative Commons Attribution (CC-BY)` (`https://sketchfab.com/`)
 - **ESTRUTURA ARQUIBANCADA 02**: `CC-BY-4.0` por RN Estrutural (`https://sketchfab.com/3d-models/estrutura-arquibancada-02-73df0751bba14ddbb55c024ad80e30a1`)
-- **Low Poly Football Pitch**: `CC-BY-4.0` por dryflowdev (`https://sketchfab.com/3d-models/low-poly-football-pitch-e1dc44264ec241589bc64ba00f252b14`)
 - **Grass001_1K-PNG (Textura de Grama)**: `CC0 (Domínio Público)` por AmbientCG (`https://ambientcg.com/view?id=Grass001`)
